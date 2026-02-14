@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "outDir": "dist",
+    "strict": true,
+    "lib": ["esnext"],
+    "esModuleInterop": true, // Importante
+    "skipLibCheck": true
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs" // Fuerza a ts-node a usar commonjs
+    }
+  }
+}

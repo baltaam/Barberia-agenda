@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: agenda_saas_db
+    environment:
+      POSTGRES_USER: admin           # Usuario
+      POSTGRES_PASSWORD: password123 # Contraseña (cámbiala en producción)
+      POSTGRES_DB: agenda_db         # Nombre de la base de datos
+    ports:
+      - "5432:5432"                  # Puerto accesible desde tu PC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persistencia de datos
+
+volumes:
+  postgres_data:

@@ -1,0 +1,87 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. EL NEGOCIO (Tu Cliente)
+model Tenant {
+  id         String   @id @default(uuid())
+  name       String // Ej: "Barbería Vikingos"
+  slug       String   @unique // Ej: "vikingos" (para la URL)
+  themeColor String   @default("#000000") // Personalización de marca
+  createdAt  DateTime @default(now())
+
+  professionals Professional[]
+  services      Service[]
+  customers     Customer[]
+}
+
+// 2. EL PROFESIONAL (El que atiende)
+model Professional {
+  id           String        @id @default(uuid())
+  name         String // Ej: "Juan Pérez"
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  appointments Appointment[]
+  blockedDates BlockedDate[]
+}
+
+// 3. EL SERVICIO (Lo que se ofrece)
+model Service {
+  id           String        @id @default(uuid())
+  name         String // Ej: "Corte y Barba" o "Sesión Kinesiología"
+  durationMin  Int // Duración en minutos (30, 45, 60)
+  price        Decimal       @default(0.0)
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  appointments Appointment[]
+}
+
+// 4. EL CLIENTE (El usuario final)
+model Customer {
+  id           String        @id @default(uuid())
+  name         String
+  email        String
+  phone        String?
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  appointments Appointment[]
+
+  @@unique([email, tenantId]) // Un email es único por negocio, pero puede repetirse en otros negocios
+}
+
+// 5. EL TURNO (La reserva)
+model Appointment {
+  id        String   @id @default(uuid())
+  startTime DateTime
+  endTime   DateTime
+  status    String   @default("CONFIRMED") // PENDING, CONFIRMED, CANCELED
+
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([professionalId, startTime]) // Para búsquedas rápidas
+}
+
+// Modelo para Días Bloqueados (Vacaciones, Feriados, etc.)
+model BlockedDate {
+  id             String       @id @default(uuid())
+  date           DateTime // La fecha que no se trabaja
+  reason         String? // Ej: "Vacaciones", "Franco"
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+}
