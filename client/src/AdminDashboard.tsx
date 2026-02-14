@@ -37,7 +37,7 @@ function AdminDashboard() {
   // --- NUEVAS FUNCIONES DE BLOQUEO ---
   
   const fetchBlocks = async (profId: string) => {
-    const res = await axios.get('http://localhost:3001/api/blocks', { params: { professionalId: profId } });
+    const res = await axios.get('https://barberia-agenda.onrender.com', { params: { professionalId: profId } });
     setBlockedDates(res.data);
   };
 
@@ -81,7 +81,7 @@ function AdminDashboard() {
     if (!profId) return;
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/appointments', {
+      const res = await axios.get('https://barberia-agenda.onrender.com', {
         params: { professionalId: profId, date: dateStr }
       });
       setAppointments(res.data);
@@ -89,7 +89,7 @@ function AdminDashboard() {
   };
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/tenant/barberia-demo')
+    axios.get('https://barberia-agenda.onrender.com')
       .then(res => {
         const profs = res.data.professionals;
         setProfessionals(profs);

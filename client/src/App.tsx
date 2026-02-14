@@ -44,7 +44,7 @@ function App() {
 
   // --- LÓGICA ---
   useEffect(() => {
-    axios.get('http://localhost:3001/api/tenant/barberia-demo')
+    axios.get('https://barberia-agenda.onrender.com')
       .then(res => { setTenant(res.data); setLoading(false); })
       .catch(err => console.error(err));
   }, []);
@@ -53,7 +53,7 @@ function App() {
     setLoadingSlots(true);
     setAvailableSlots([]); 
     try {
-      const res = await axios.get('http://localhost:3001/api/availability', {
+      const res = await axios.get('https://barberia-agenda.onrender.com', {
         params: { professionalId: professionalId, date: dateStr, serviceId: serviceId }
       });
       setAvailableSlots(res.data);
