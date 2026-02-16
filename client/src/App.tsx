@@ -44,7 +44,7 @@ function App() {
 
   // --- LÓGICA ---
   useEffect(() => {
-    axios.get('https://barberia-agenda.onrender.com/professionals')
+    axios.get('https://barberia-agenda.onrender.com/api/professionals')
       .then(res => { setTenant(res.data); setLoading(false); })
       .catch(err => console.error(err));
   }, []);
@@ -53,7 +53,7 @@ function App() {
     setLoadingSlots(true);
     setAvailableSlots([]); 
     try {
-      const res = await axios.get('https://barberia-agenda.onrender.com/professionals', {
+      const res = await axios.get('https://barberia-agenda.onrender.com/api/professionals', {
         params: { professionalId: professionalId, date: dateStr, serviceId: serviceId }
       });
       setAvailableSlots(res.data);
