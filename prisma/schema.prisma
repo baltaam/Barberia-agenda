@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,41 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 1. EL NEGOCIO (Tu Cliente)
+// --- 1. NEGOCIOS (Tenants) ---
 model Tenant {
-  id         String   @id @default(uuid())
-  name       String // Ej: "Barbería Vikingos"
-  slug       String   @unique // Ej: "vikingos" (para la URL)
-  themeColor String   @default("#000000") // Personalización de marca
-  createdAt  DateTime @default(now())
+  id         String  @id @default(uuid())
+  name       String
+  slug       String  @unique
+  themeColor String  @default("#000000")
+  category   String? @default("Servicio")
+  address    String?
+  phone      String?
+
+  // 🔥 AQUÍ ESTÁN LOS NUEVOS CAMPOS DE HORARIOS 🔥
+  openingHour   Int     @default(9) // Hora de apertura (ej: 9 para las 09:00)
+  closingHour   Int     @default(18) // Hora de cierre (ej: 18 para las 18:00)
+  closedDays    String  @default("[0]") // Días cerrados en formato texto (0=Dom, 1=Lun... 6=Sab)
+  mpAccessToken String?
 
   professionals Professional[]
   services      Service[]
   customers     Customer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// 2. EL PROFESIONAL (El que atiende)
+// --- 2. PROFESIONALES ---
 model Professional {
   id           String        @id @default(uuid())
-  name         String // Ej: "Juan Pérez"
+  name         String
   tenantId     String
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   appointments Appointment[]
   blockedDates BlockedDate[]
 }
 
-// 3. EL SERVICIO (Lo que se ofrece)
+// --- 3. SERVICIOS ---
 model Service {
   id           String        @id @default(uuid())
-  name         String // Ej: "Corte y Barba" o "Sesión Kinesiología"
-  durationMin  Int // Duración en minutos (30, 45, 60)
-  price        Decimal       @default(0.0)
+  name         String
+  price        Int
+  durationMin  Int
   tenantId     String
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   appointments Appointment[]
 }
 
-// 4. EL CLIENTE (El usuario final)
+// --- 4. CLIENTES ---
 model Customer {
   id           String        @id @default(uuid())
   name         String
@@ -52,36 +61,29 @@ model Customer {
   tenantId     String
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   appointments Appointment[]
-
-  @@unique([email, tenantId]) // Un email es único por negocio, pero puede repetirse en otros negocios
 }
 
-// 5. EL TURNO (La reserva)
+// --- 5. TURNOS ---
 model Appointment {
-  id        String   @id @default(uuid())
-  startTime DateTime
-  endTime   DateTime
-  status    String   @default("CONFIRMED") // PENDING, CONFIRMED, CANCELED
-
+  id             String       @id @default(uuid())
+  startTime      DateTime
+  endTime        DateTime
+  status         String       @default("PENDING")
+  paymentStatus  String       @default("PENDING") // PENDING, APPROVED, REJECTED
+  paymentId      String? // El número de recibo de MP
   professionalId String
   professional   Professional @relation(fields: [professionalId], references: [id])
-
-  serviceId String
-  service   Service @relation(fields: [serviceId], references: [id])
-
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@index([professionalId, startTime]) // Para búsquedas rápidas
+  serviceId      String
+  service        Service      @relation(fields: [serviceId], references: [id])
+  customerId     String
+  customer       Customer     @relation(fields: [customerId], references: [id])
 }
 
-// Modelo para Días Bloqueados (Vacaciones, Feriados, etc.)
+// --- 6. VACACIONES Y BLOQUEOS ---
 model BlockedDate {
   id             String       @id @default(uuid())
-  date           DateTime // La fecha que no se trabaja
-  reason         String? // Ej: "Vacaciones", "Franco"
+  date           DateTime
+  reason         String
   professionalId String
   professional   Professional @relation(fields: [professionalId], references: [id])
 }

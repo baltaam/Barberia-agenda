@@ -12,7 +12,7 @@ export const useTenant = () => {
     // En desarrollo forzamos uno
     const slug = subdomain === 'localhost' ? 'demo-barberia' : subdomain;
 
-    fetch(https://api.misaas.com/tenants/${slug})
+    fetch (https:/api.misaas.com/tenants/${slug})
       .then(res => res.json())
       .then(data => {
         setTenant(data);

@@ -1,53 +1,71 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Trash2, LogOut, DollarSign, Activity, Search, ShieldBan, Plus } from 'lucide-react'; // <--- Nuevos Iconos
+import { Calendar, Clock, Trash2, LogOut, DollarSign, Activity, Search, ShieldBan, Plus } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 
+// --- CONFIGURACIÓN PARA VERCEL Y RENDER ---
+// Si estás en local usará localhost, si estás en Vercel usará la URL de Render (debes configurarla en Vercel)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 // Tipos
-interface Appointment { id: string; startTime: string; service: { name: string; price: string; durationMin: number }; customer: { name: string; email: string; phone?: string }; }
+interface Appointment { id: string; professionalId: string; startTime: string; service: { name: string; price: string; durationMin: number }; customer: { name: string; email: string; phone?: string }; }
 interface Professional { id: string; name: string; }
-interface BlockedDate { id: string; date: string; reason: string; } // <--- TIPO NUEVO
+interface BlockedDate { id: string; date: string; reason: string; }
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  
+  // Identidad del negocio actual (Simulamos que se guardó al hacer Login)
+  const tenantId = sessionStorage.getItem('tenantId') || 'barberia-demo'; 
+
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedProf, setSelectedProf] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]); // <--- ESTADO NUEVO
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]); 
   const [loading, setLoading] = useState(false);
   
-  // Estado para el formulario de bloqueo
   const [blockDateInput, setBlockDateInput] = useState('');
   const [blockReason, setBlockReason] = useState('Día Libre');
 
   // --- FUNCIONES ---
 
-  const handleLogout = () => { sessionStorage.removeItem('isAdmin'); navigate('/login'); };
+  const handleLogout = () => { 
+    sessionStorage.removeItem('isAdmin'); 
+    sessionStorage.removeItem('tenantId');
+    navigate('/login'); 
+  };
 
   const handleDelete = async (id: string) => {
-    toast.promise(axios.delete(`http://localhost:3001/api/appointments/${id}`), {
+    toast.promise(axios.delete(`${API_URL}/appointments/${id}`), {
       loading: 'Eliminando...',
       success: () => { fetchAppointments(selectedProf, selectedDate); return 'Turno eliminado'; },
       error: 'Error'
     });
   };
 
-  // --- NUEVAS FUNCIONES DE BLOQUEO ---
-  
+  // --- FUNCIONES DE BLOQUEO (CORREGIDAS) ---
   const fetchBlocks = async (profId: string) => {
-    const res = await axios.get('https://barberia-agenda.onrender.com/api/professionals', { params: { professionalId: profId } });
-    setBlockedDates(res.data);
+    try {
+      // BUG ARREGLADO: Antes llamaba a /professionals, ahora llama a /api/blocks
+      const res = await axios.get(`${API_URL}/api/blocks`, { params: { professionalId: profId } });
+      setBlockedDates(res.data);
+    } catch (error) {
+      console.error("Error cargando bloqueos", error);
+    }
   };
 
   const handleBlockDate = async () => {
     if (!blockDateInput) return toast.error("Selecciona una fecha para bloquear");
     
+    // Convertimos la fecha correctamente para evitar problemas de zona horaria
+    const dateObj = new Date(blockDateInput + 'T00:00:00');
+
     toast.promise(
-      axios.post('http://localhost:3001/api/blocks', {
+      axios.post(`${API_URL}/api/blocks`, {
         professionalId: selectedProf,
-        date: new Date(blockDateInput).toISOString(),
+        date: dateObj.toISOString(),
         reason: blockReason
       }),
       {
@@ -63,49 +81,59 @@ function AdminDashboard() {
   };
 
   const handleUnblock = async (id: string) => {
-    toast.promise(axios.delete(`http://localhost:3001/api/blocks/${id}`),
-  {
-    loading:"Habilitando fecha nuevamente...",
-    success:()=> {
-      fetchBlocks(selectedProf);
-      return "Día desbloqueado.¡Agenda abierta! ✅";
-    },
-    error:"No se pudo desbloquear ese día",
-  }
-  );
-};
+    toast.promise(axios.delete(`${API_URL}/api/blocks/${id}`), {
+      loading:"Habilitando fecha nuevamente...",
+      success:()=> {
+        fetchBlocks(selectedProf);
+        return "Día desbloqueado. ¡Agenda abierta! ✅";
+      },
+      error:"No se pudo desbloquear ese día",
+    });
+  };
 
-  // -----------------------------------
-
+// --- FUNCIONES DE TURNOS (CORREGIDAS PARA MULTI-TENANT) ---
   const fetchAppointments = async (profId: string, dateStr: string) => {
     if (!profId) return;
     setLoading(true);
     try {
-      const res = await axios.get('https://barberia-agenda.onrender.com/api/professionals', {
-        params: { professionalId: profId, date: dateStr }
+      // 1. Llamamos a la ruta correcta en tu backend de Render y le pasamos el tenantId
+      const res = await axios.get(`${API_URL}/appointments`, {
+        params: { tenantId: tenantId }
       });
-      setAppointments(res.data);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
-  };
+      
+      // 2. Filtramos la lista para mostrar SOLO los turnos de la fecha y profesional seleccionados en pantalla
+      const turnosFiltrados = res.data.filter((turno: Appointment) => 
+        turno.professionalId === profId && 
+        turno.startTime.startsWith(dateStr)
+      );
 
+      setAppointments(turnosFiltrados);
+    } catch (error) { 
+      console.error("Error cargando turnos:", error); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+  // --- CARGA INICIAL (CON AISLAMIENTO SAAS) ---
   useEffect(() => {
-    axios.get('https://barberia-agenda.onrender.com/api/professionals')
+    // Solo pedimos los profesionales de ESTE negocio (tenantId)
+    axios.get(`${API_URL}/professionals`, { params: { tenantId } })
       .then(res => {
-        const profs = res.data.professionals;
+        const profs = res.data; // Ajustado según lo que devuelve tu backend
         setProfessionals(profs);
         if (profs.length > 0) {
           setSelectedProf(profs[0].id);
           fetchAppointments(profs[0].id, selectedDate);
-          fetchBlocks(profs[0].id); // <--- Cargar bloqueos al inicio
+          fetchBlocks(profs[0].id); 
         }
       });
-  }, []);
+  }, [tenantId]); // Se recarga si cambia el negocio
 
   const handleProfChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newProfId = e.target.value;
     setSelectedProf(newProfId);
     fetchAppointments(newProfId, selectedDate);
-    fetchBlocks(newProfId); // <--- Cargar bloqueos al cambiar
+    fetchBlocks(newProfId); 
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,12 +147,12 @@ function AdminDashboard() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500 selection:text-black pb-20">
       
-      {/* HEADER (Igual que antes) */}
+      {/* HEADER */}
       <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-amber-500 p-2 rounded-lg text-black"><Activity size={24} /></div>
-            <div><h1 className="text-xl font-bold text-white">Command Center</h1></div>
+            <div><h1 className="text-xl font-bold text-white">Panel de Administración</h1></div>
           </div>
           <div className="flex items-center gap-4 bg-zinc-900 p-1.5 rounded-xl border border-zinc-800">
              <select className="bg-transparent text-sm text-white font-medium px-3 py-2 outline-none cursor-pointer" value={selectedProf} onChange={handleProfChange}>
@@ -139,7 +167,7 @@ function AdminDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         
-        {/* KPI CARDS (Igual que antes...) */}
+        {/* KPI CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <div className="bg-zinc-900/80 p-6 rounded-2xl border border-zinc-800 shadow-xl relative overflow-hidden">
             <div className="absolute right-0 top-0 p-4 opacity-10"><Calendar size={80} className="text-blue-500"/></div>
@@ -179,7 +207,7 @@ function AdminDashboard() {
                       <div className="bg-zinc-950 border border-zinc-800 w-16 h-16 rounded-xl flex items-center justify-center text-xl font-bold text-white">{time}</div>
                       <div>
                         <h3 className="font-bold text-lg text-white group-hover:text-amber-500 transition">{appt.customer.name}</h3>
-                        <div className="text-zinc-500 text-sm">{appt.service.name} • {appt.customer.phone}</div>
+                        <div className="text-zinc-500 text-sm">{appt.service.name} • {appt.customer.phone || 'Sin teléfono'}</div>
                       </div>
                     </div>
                     <button onClick={() => handleDelete(appt.id)} className="p-2 text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Trash2 size={20}/></button>
@@ -190,7 +218,7 @@ function AdminDashboard() {
           )}
         </div>
 
-        {/* --- NUEVA SECCIÓN: GESTIÓN DE BLOQUEOS (VACACIONES) --- */}
+        {/* --- SECCIÓN DE BLOQUEOS --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Formulario de Bloqueo */}
@@ -209,6 +237,7 @@ function AdminDashboard() {
                             style={{colorScheme: 'dark'}}
                             onChange={e => setBlockDateInput(e.target.value)}
                             value={blockDateInput}
+                            min={new Date().toISOString().split('T')[0]}
                         />
                     </div>
                     <div>
@@ -249,7 +278,7 @@ function AdminDashboard() {
                             <div key={block.id} className="flex items-center justify-between bg-zinc-950 p-4 rounded-xl border border-zinc-800 group hover:border-zinc-700 transition">
                                 <div className="flex items-center gap-4">
                                     <div className="bg-zinc-900 text-zinc-400 font-bold p-2 rounded-lg text-center min-w-[50px]">
-                                        <div className="text-xs uppercase">{new Date(block.date).toLocaleString('es-ES', {month: 'short'})}</div>
+                                        <div className="text-xs uppercase">{new Date(block.date).toLocaleString('es-ES', {month: 'short', timeZone: 'UTC'})}</div>
                                         <div className="text-xl">{new Date(block.date).getUTCDate()}</div>
                                     </div>
                                     <div>
@@ -262,16 +291,14 @@ function AdminDashboard() {
                                     className="p-2 text-zinc-600 hover:text-green-500 transition opacity-0 group-hover:opacity-100"
                                     title="Desbloquear (Volver a trabajar)"
                                 >
-                                    <Plus size={20} className="rotate-45"/> {/* Icono X simulado */}
+                                    <Plus size={20} className="rotate-45"/>
                                 </button>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
-
         </div>
-
       </main>
     </div>
   );
