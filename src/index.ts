@@ -8,7 +8,9 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: '*' // Esto le dice a Render: "Dejá entrar a cualquiera, incluso a Vercel"
+}));
 app.use(express.json());
 
 // --- ENDPOINT DE BIENVENIDA ---
