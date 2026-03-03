@@ -298,6 +298,7 @@ app.delete('/api/blocks/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar bloqueo' });
   }
 });
+console.log("🚨 LA URL DE NEON ES:", process.env.DATABASE_URL);
 // --- 6. ROBOT DE RECORDATORIOS (CRON JOB) 🤖 ---
 // Este código se ejecuta todos los días a las 10:00 AM (0 10 * * *)
 cron.schedule('* * * * *', async () => {
